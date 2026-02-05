@@ -1,0 +1,648 @@
+// ⚠️ REPLACE THIS WITH YOUR ACTUAL API KEY
+const CLAUDE_API_KEY = 'sk-ant-YOUR_KEY_HERE';
+
+const { useState, useRef, useEffect } = React;
+
+// Icon components (simplified versions)
+const Icon = ({ name, size = 20, ...props }) => {
+  const icons = {
+    send: '→',
+    settings: '⚙',
+    message: '💬',
+    x: '✕',
+    bold: 'B',
+    italic: 'I',
+    underline: 'U',
+    alignLeft: '≡',
+    alignCenter: '≣',
+    alignRight: '≡',
+    list: '•',
+    listOrdered: '1.',
+    save: '💾',
+    folder: '📁',
+    logout: '🚪',
+    user: '👤',
+    plus: '+',
+  };
+  return <span style={{ fontSize: size, fontWeight: 'bold' }} {...props}>{icons[name]}</span>;
+};
+
+const WritingAssistant = () => {
+  const [essay, setEssay] = useState('');
+  const [comments, setComments] = useState([]);
+  const [showComments, setShowComments] = useState(true);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [showChat, setShowChat] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // User and document management
+  const [user, setUser] = useState(null);
+  const [showLogin, setShowLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [showDocuments, setShowDocuments] = useState(false);
+  const [currentDocId, setCurrentDocId] = useState(null);
+  const [documentTitle, setDocumentTitle] = useState('Untitled Document');
+  
+  // Settings
+  const [style, setStyle] = useState('formal');
+  const [gradeLevel, setGradeLevel] = useState('high-school');
+  
+  // Formatting states
+  const [fontSize, setFontSize] = useState('16');
+  const [fontFamily, setFontFamily] = useState('Arial');
+  const [textColor, setTextColor] = useState('#000000');
+  const [highlightColor, setHighlightColor] = useState('#ffff00');
+  
+  const editorRef = useRef(null);
+  const chatEndRef = useRef(null);
+
+  // Auto-save document
+  useEffect(() => {
+    if (user && currentDocId && essay) {
+      const timer = setTimeout(() => {
+        saveDocument();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [essay, user, currentDocId]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  const handleAuth = () => {
+    if (!email || !password) {
+      alert('Please enter email and password');
+      return;
+    }
+
+    const userKey = `user_${email}`;
+    
+    if (isSignUp) {
+      const existing = localStorage.getItem(userKey);
+      if (existing) {
+        alert('User already exists! Please log in.');
+        return;
+      }
+      const newUser = { email, createdAt: new Date().toISOString() };
+      localStorage.setItem(userKey, JSON.stringify(newUser));
+      setUser(newUser);
+      setShowLogin(false);
+      loadUserDocuments(email);
+    } else {
+      const userData = localStorage.getItem(userKey);
+      if (!userData) {
+        alert('User not found. Please sign up first.');
+        return;
+      }
+      const user = JSON.parse(userData);
+      setUser(user);
+      setShowLogin(false);
+      loadUserDocuments(email);
+    }
+  };
+
+  const loadUserDocuments = (userEmail) => {
+    const docsKey = `docs_${userEmail}`;
+    const docsData = localStorage.getItem(docsKey);
+    if (docsData) {
+      setDocuments(JSON.parse(docsData));
+    }
+  };
+
+  const createNewDocument = () => {
+    const newDoc = {
+      id: Date.now().toString(),
+      title: 'Untitled Document',
+      content: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      style,
+      gradeLevel
+    };
+    
+    setCurrentDocId(newDoc.id);
+    setDocumentTitle(newDoc.title);
+    setEssay('');
+    setComments([]);
+    setChatMessages([]);
+    setShowDocuments(false);
+  };
+
+  const saveDocument = () => {
+    if (!user || !currentDocId) return;
+
+    const docsKey = `docs_${user.email}`;
+    let allDocs = [...documents];
+    
+    const docIndex = allDocs.findIndex(d => d.id === currentDocId);
+    const docData = {
+      id: currentDocId,
+      title: documentTitle,
+      content: essay,
+      updatedAt: new Date().toISOString(),
+      style,
+      gradeLevel
+    };
+
+    if (docIndex >= 0) {
+      allDocs[docIndex] = { ...allDocs[docIndex], ...docData };
+    } else {
+      docData.createdAt = new Date().toISOString();
+      allDocs.push(docData);
+    }
+
+    localStorage.setItem(docsKey, JSON.stringify(allDocs));
+    setDocuments(allDocs);
+    localStorage.setItem(`doc_${currentDocId}`, JSON.stringify(docData));
+  };
+
+  const openDocument = (docId) => {
+    const docData = localStorage.getItem(`doc_${docId}`);
+    if (docData) {
+      const doc = JSON.parse(docData);
+      setCurrentDocId(doc.id);
+      setDocumentTitle(doc.title);
+      setEssay(doc.content);
+      setStyle(doc.style || 'formal');
+      setGradeLevel(doc.gradeLevel || 'high-school');
+      setComments([]);
+      setChatMessages([]);
+      setShowDocuments(false);
+    }
+  };
+
+  const deleteDocument = (docId) => {
+    if (!confirm('Delete this document?')) return;
+
+    const docsKey = `docs_${user.email}`;
+    const updatedDocs = documents.filter(d => d.id !== docId);
+    localStorage.setItem(docsKey, JSON.stringify(updatedDocs));
+    localStorage.removeItem(`doc_${docId}`);
+    setDocuments(updatedDocs);
+    
+    if (currentDocId === docId) {
+      setCurrentDocId(null);
+      setEssay('');
+      setDocumentTitle('Untitled Document');
+    }
+  };
+
+  const logout = () => {
+    setUser(null);
+    setShowLogin(true);
+    setEssay('');
+    setDocuments([]);
+    setCurrentDocId(null);
+    setComments([]);
+    setChatMessages([]);
+  };
+
+  const applyFormat = (command, value = null) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+  };
+
+  const analyzeWriting = async () => {
+    if (!essay.trim()) {
+      alert('Please write something first!');
+      return;
+    }
+
+    setIsLoading(true);
+    const styleName = style === 'formal' ? 'Formal/Academic' : style === 'creative' ? 'Creative' : 'Casual';
+    const gradeName = gradeLevel === 'elementary' ? 'Elementary School (Grades 3-5)' : 
+                      gradeLevel === 'middle-school' ? 'Middle School (Grades 6-8)' :
+                      gradeLevel === 'high-school' ? 'High School (Grades 9-12)' : 'College';
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `You are a writing tutor helping a student improve their essay. You MUST NOT write the essay for them or provide complete rewrites. Instead, provide 3-5 specific, constructive suggestions as brief comments.
+
+Writing Style: ${styleName}
+Grade Level: ${gradeName}
+
+Focus on:
+- Sentence structure and clarity issues
+- Paragraph organization suggestions
+- Word choice improvements (suggest they consider alternatives, don't provide full rewrites)
+- Grammar and punctuation errors
+- Thesis strength and argument coherence
+
+Format each suggestion as a SHORT comment (1-2 sentences max) in this exact JSON format:
+[
+  {"location": "beginning/middle/end", "comment": "Your specific suggestion here"},
+  {"location": "beginning/middle/end", "comment": "Another suggestion"}
+]
+
+Essay text:
+${essay}
+
+Return ONLY the JSON array, no other text.`
+          }]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.content && data.content[0]?.text) {
+        const text = data.content[0].text.trim();
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const suggestions = JSON.parse(jsonMatch[0]);
+          setComments(suggestions);
+        }
+      }
+    } catch (error) {
+      console.error('Error analyzing writing:', error);
+      alert('Error analyzing writing. Check console for details.');
+    }
+
+    setIsLoading(false);
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim()) return;
+
+    const userMessage = { role: 'user', content: chatInput };
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: `You are a helpful writing tutor. The student is working on this essay:
+
+"${essay}"
+
+They have a question: ${chatInput}
+
+Provide helpful guidance but DO NOT write the essay for them. If they ask for synonyms, give options. If they ask about paragraph breaks, suggest where breaks might help. If they ask you to rewrite something, instead explain how THEY could improve it. Keep responses concise and educational.`
+          }]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.content && data.content[0]?.text) {
+        const aiMessage = { role: 'assistant', content: data.content[0].text };
+        setChatMessages(prev => [...prev, aiMessage]);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMessage = { role: 'assistant', content: 'Sorry, there was an error. Check console for details.' };
+      setChatMessages(prev => [...prev, errorMessage]);
+    }
+
+    setIsLoading(false);
+  };
+
+  // Login Screen
+  if (showLogin) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+        <div style={{ background: 'white', padding: '40px', borderRadius: '10px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', width: '400px' }}>
+          <h1 style={{ fontSize: '32px', fontWeight: 'bold', textAlign: 'center', marginBottom: '30px', color: '#667eea' }}>
+            AI Writing Assistant
+          </h1>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '16px' }}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleAuth()}
+              style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '16px' }}
+            />
+            <button
+              onClick={handleAuth}
+              style={{ width: '100%', background: '#667eea', color: 'white', padding: '12px', borderRadius: '8px', border: 'none', fontSize: '16px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              {isSignUp ? 'Sign Up' : 'Log In'}
+            </button>
+            <button
+              onClick={() => setIsSignUp(!isSignUp)}
+              style={{ width: '100%', color: '#667eea', background: 'none', border: 'none', fontSize: '14px', cursor: 'pointer' }}
+            >
+              {isSignUp ? 'Already have an account? Log in' : "Don't have an account? Sign up"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', height: '100vh', background: '#f7fafc' }}>
+      {/* Documents Sidebar */}
+      {showDocuments && (
+        <div style={{ width: '320px', background: 'white', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 style={{ fontSize: '20px', fontWeight: 'bold' }}>My Documents</h2>
+            <button onClick={() => setShowDocuments(false)} style={{ padding: '8px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px' }}>
+              <Icon name="x" />
+            </button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+            <button
+              onClick={createNewDocument}
+              style={{ width: '100%', marginBottom: '20px', padding: '12px', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 'bold' }}
+            >
+              <Icon name="plus" />
+              New Document
+            </button>
+            {documents.map(doc => (
+              <div key={doc.id} style={{ marginBottom: '10px', padding: '15px', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', background: '#f7fafc' }}>
+                <div onClick={() => openDocument(doc.id)}>
+                  <h3 style={{ fontWeight: 'bold', marginBottom: '5px' }}>{doc.title}</h3>
+                  <p style={{ fontSize: '12px', color: '#718096' }}>
+                    {new Date(doc.updatedAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteDocument(doc.id);
+                  }}
+                  style={{ marginTop: '10px', color: '#e53e3e', background: 'none', border: 'none', fontSize: '12px', cursor: 'pointer' }}
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Main Editor */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {/* Top Bar */}
+        <div style={{ background: '#667eea', color: 'white', padding: '15px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <button onClick={() => setShowDocuments(true)} style={{ padding: '8px', background: '#5568d3', border: 'none', borderRadius: '6px', cursor: 'pointer', color: 'white' }}>
+              <Icon name="folder" />
+            </button>
+            <input
+              type="text"
+              value={documentTitle}
+              onChange={(e) => setDocumentTitle(e.target.value)}
+              style={{ background: '#5568d3', padding: '8px 12px', borderRadius: '6px', color: 'white', border: 'none', outline: 'none', fontSize: '16px' }}
+              placeholder="Document title"
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <span style={{ fontSize: '14px' }}>{user?.email}</span>
+            <button onClick={saveDocument} style={{ padding: '8px', background: '#5568d3', border: 'none', borderRadius: '6px', cursor: 'pointer', color: 'white' }}>
+              <Icon name="save" />
+            </button>
+            <button onClick={logout} style={{ padding: '8px', background: '#5568d3', border: 'none', borderRadius: '6px', cursor: 'pointer', color: 'white' }}>
+              <Icon name="logout" />
+            </button>
+          </div>
+        </div>
+
+        {/* Toolbar */}
+        <div style={{ background: 'white', borderBottom: '1px solid #e2e8f0', padding: '10px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <select 
+            value={fontFamily} 
+            onChange={(e) => setFontFamily(e.target.value)}
+            style={{ border: '1px solid #cbd5e0', borderRadius: '4px', padding: '6px' }}
+          >
+            <option value="Arial">Arial</option>
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Courier New">Courier New</option>
+            <option value="Georgia">Georgia</option>
+            <option value="Verdana">Verdana</option>
+          </select>
+          
+          <select 
+            value={fontSize} 
+            onChange={(e) => setFontSize(e.target.value)}
+            style={{ border: '1px solid #cbd5e0', borderRadius: '4px', padding: '6px', width: '70px' }}
+          >
+            {[12, 14, 16, 18, 20, 24, 28, 32].map(size => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+
+          <div style={{ borderLeft: '1px solid #cbd5e0', height: '24px', margin: '0 5px' }}></div>
+
+          <button onClick={() => applyFormat('bold')} style={{ padding: '6px 10px', border: '1px solid #cbd5e0', borderRadius: '4px', background: 'white', cursor: 'pointer' }}>
+            <Icon name="bold" size={16} />
+          </button>
+          <button onClick={() => applyFormat('italic')} style={{ padding: '6px 10px', border: '1px solid #cbd5e0', borderRadius: '4px', background: 'white', cursor: 'pointer' }}>
+            <Icon name="italic" size={16} />
+          </button>
+          <button onClick={() => applyFormat('underline')} style={{ padding: '6px 10px', border: '1px solid #cbd5e0', borderRadius: '4px', background: 'white', cursor: 'pointer' }}>
+            <Icon name="underline" size={16} />
+          </button>
+
+          <div style={{ borderLeft: '1px solid #cbd5e0', height: '24px', margin: '0 5px' }}></div>
+
+          <button onClick={() => applyFormat('justifyLeft')} style={{ padding: '6px 10px', border: '1px solid #cbd5e0', borderRadius: '4px', background: 'white', cursor: 'pointer' }}>
+            <Icon name="alignLeft" size={16} />
+          </button>
+          <button onClick={() => applyFormat('justifyCenter')} style={{ padding: '6px 10px', border: '1px solid #cbd5e0', borderRadius: '4px', background: 'white', cursor: 'pointer' }}>
+            <Icon name="alignCenter" size={16} />
+          </button>
+          <button onClick={() => applyFormat('justifyRight')} style={{ padding: '6px 10px', border: '1px solid #cbd5e0', borderRadius: '4px', background: 'white', cursor: 'pointer' }}>
+            <Icon name="alignRight" size={16} />
+          </button>
+
+          <div style={{ borderLeft: '1px solid #cbd5e0', height: '24px', margin: '0 5px' }}></div>
+
+          <button onClick={() => applyFormat('insertUnorderedList')} style={{ padding: '6px 10px', border: '1px solid #cbd5e0', borderRadius: '4px', background: 'white', cursor: 'pointer' }}>
+            <Icon name="list" size={16} />
+          </button>
+          <button onClick={() => applyFormat('insertOrderedList')} style={{ padding: '6px 10px', border: '1px solid #cbd5e0', borderRadius: '4px', background: 'white', cursor: 'pointer' }}>
+            <Icon name="listOrdered" size={16} />
+          </button>
+
+          <div style={{ borderLeft: '1px solid #cbd5e0', height: '24px', margin: '0 5px' }}></div>
+
+          <input
+            type="color"
+            value={textColor}
+            onChange={(e) => {
+              setTextColor(e.target.value);
+              applyFormat('foreColor', e.target.value);
+            }}
+            style={{ width: '32px', height: '32px', cursor: 'pointer', border: '1px solid #cbd5e0', borderRadius: '4px' }}
+            title="Text Color"
+          />
+          <input
+            type="color"
+            value={highlightColor}
+            onChange={(e) => {
+              setHighlightColor(e.target.value);
+              applyFormat('hiliteColor', e.target.value);
+            }}
+            style={{ width: '32px', height: '32px', cursor: 'pointer', border: '1px solid #cbd5e0', borderRadius: '4px' }}
+            title="Highlight"
+          />
+
+          <div style={{ flex: 1 }}></div>
+
+          <button
+            onClick={() => setShowSettings(true)}
+            style={{ padding: '8px 12px', border: '1px solid #cbd5e0', borderRadius: '4px', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Icon name="settings" size={16} />
+            Settings
+          </button>
+        </div>
+
+        {/* Editor Area */}
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          {/* Writing Area */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '40px' }}>
+            <div
+              ref={editorRef}
+              contentEditable
+              onInput={(e) => setEssay(e.currentTarget.textContent)}
+              style={{
+                maxWidth: '800px',
+                margin: '0 auto',
+                minHeight: '100%',
+                padding: '40px',
+                background: 'white',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                outline: 'none',
+                fontFamily: fontFamily,
+                fontSize: `${fontSize}px`,
+                lineHeight: '1.6'
+              }}
+              suppressContentEditableWarning
+            >
+              {essay || 'Start writing your essay here...'}
+            </div>
+          </div>
+
+          {/* Comments Panel */}
+          {showComments && (
+            <div style={{ width: '320px', background: 'white', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 style={{ fontWeight: 'bold' }}>AI Suggestions</h3>
+                <button onClick={() => setShowComments(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px' }}>
+                  <Icon name="x" />
+                </button>
+              </div>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                <button
+                  onClick={analyzeWriting}
+                  disabled={isLoading}
+                  style={{ width: '100%', marginBottom: '20px', padding: '12px', background: isLoading ? '#cbd5e0' : '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: isLoading ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
+                >
+                  {isLoading ? 'Analyzing...' : 'Analyze Writing'}
+                </button>
+                {comments.map((comment, i) => (
+                  <div key={i} style={{ marginBottom: '15px', padding: '15px', background: '#fef3c7', borderLeft: '4px solid #f59e0b', borderRadius: '6px' }}>
+                    <p style={{ fontSize: '11px', color: '#92400e', marginBottom: '8px', textTransform: 'uppercase', fontWeight: 'bold' }}>{comment.location}</p>
+                    <p style={{ fontSize: '14px', color: '#78350f' }}>{comment.comment}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom Action Bar */}
+        <div style={{ background: 'white', borderTop: '1px solid #e2e8f0', padding: '15px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <button
+            onClick={() => setShowChat(!showChat)}
+            style={{ padding: '10px 20px', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}
+          >
+            <Icon name="message" size={16} />
+            {showChat ? 'Hide' : 'Show'} AI Chat
+          </button>
+          {!showComments && (
+            <button
+              onClick={() => setShowComments(true)}
+              style={{ padding: '10px 20px', background: '#4a5568', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              Show Comments
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Chat Panel */}
+      {showChat && (
+        <div style={{ width: '380px', background: 'white', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 style={{ fontWeight: 'bold' }}>Ask AI</h3>
+            <button onClick={() => setShowChat(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px' }}>
+              <Icon name="x" />
+            </button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {chatMessages.map((msg, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '80%',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  background: msg.role === 'user' ? '#667eea' : '#e2e8f0',
+                  color: msg.role === 'user' ? 'white' : 'black'
+                }}>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {isLoading && (
+              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <div style={{ background: '#e2e8f0', padding: '12px', borderRadius: '12px' }}>Thinking...</div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+          <div style={{ padding: '20px', borderTop: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                placeholder="Ask
