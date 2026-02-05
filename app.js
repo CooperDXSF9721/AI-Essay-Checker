@@ -645,4 +645,73 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
-                placeholder="Ask
+                placeholder="Ask for help..."
+                style={{ flex: 1, padding: '10px', border: '1px solid #cbd5e0', borderRadius: '8px', fontSize: '14px' }}
+              />
+              <button
+                onClick={sendChatMessage}
+                disabled={isLoading}
+                style={{ padding: '10px', background: isLoading ? '#cbd5e0' : '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: isLoading ? 'not-allowed' : 'pointer' }}
+              >
+                <Icon name="send" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '30px', width: '400px', maxHeight: '80vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: '24px', fontWeight: 'bold' }}>Settings</h2>
+              <button onClick={() => setShowSettings(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '24px' }}>
+                <Icon name="x" />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>Writing Style</label>
+                <select
+                  value={style}
+                  onChange={(e) => setStyle(e.target.value)}
+                  style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '8px', fontSize: '14px' }}
+                >
+                  <option value="formal">Formal/Academic</option>
+                  <option value="creative">Creative</option>
+                  <option value="casual">Casual</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>Grade Level</label>
+                <select
+                  value={gradeLevel}
+                  onChange={(e) => setGradeLevel(e.target.value)}
+                  style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '8px', fontSize: '14px' }}
+                >
+                  <option value="elementary">Elementary (3-5)</option>
+                  <option value="middle-school">Middle School (6-8)</option>
+                  <option value="high-school">High School (9-12)</option>
+                  <option value="college">College</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() => setShowSettings(false)}
+                style={{ width: '100%', padding: '12px', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}
+              >
+                Save Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Render the app
+ReactDOM.render(<WritingAssistant />, document.getElementById('root'));
