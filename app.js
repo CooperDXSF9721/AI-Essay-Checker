@@ -1,5 +1,6 @@
-// ⚠️ REPLACE THIS WITH YOUR ACTUAL API KEY
-const CLAUDE_API_KEY = 'sk-ant-YOUR_KEY_HERE';
+// ⚠️ REPLACE THIS WITH YOUR GOOGLE GEMINI API KEY
+// Get it FREE at: https://makersuite.google.com/app/apikey
+const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY_HERE';
 
 const { useState, useRef, useEffect } = React;
 
@@ -208,6 +209,12 @@ const WritingAssistant = () => {
     editorRef.current?.focus();
   };
 
+  // FIXED: Handle editor input properly
+  const handleEditorInput = (e) => {
+    const content = e.currentTarget.innerHTML;
+    setEssay(content);
+  };
+
   const analyzeWriting = async () => {
     if (!essay.trim()) {
       alert('Please write something first!');
@@ -220,20 +227,10 @@ const WritingAssistant = () => {
                       gradeLevel === 'middle-school' ? 'Middle School (Grades 6-8)' :
                       gradeLevel === 'high-school' ? 'High School (Grades 9-12)' : 'College';
 
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': CLAUDE_API_KEY,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: `You are a writing tutor helping a student improve their essay. You MUST NOT write the essay for them or provide complete rewrites. Instead, provide 3-5 specific, constructive suggestions as brief comments.
+    // Get plain text for analysis
+    const plainText = editorRef.current?.innerText || essay;
+
+    const prompt = `You are a writing tutor helping a student improve their essay. You MUST NOT write the essay for them or provide complete rewrites. Instead, provide 3-5 specific, constructive suggestions as brief comments.
 
 Writing Style: ${styleName}
 Grade Level: ${gradeName}
@@ -252,30 +249,46 @@ Format each suggestion as a SHORT comment (1-2 sentences max) in this exact JSON
 ]
 
 Essay text:
-${essay}
+${plainText}
 
-Return ONLY the JSON array, no other text.`
+Return ONLY the JSON array, no other text.`;
+
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
           }]
         })
       });
 
       if (!response.ok) {
+        const errorData = await response.json();
+        console.error('API Error:', errorData);
         throw new Error(`API Error: ${response.status}`);
       }
 
       const data = await response.json();
       
-      if (data.content && data.content[0]?.text) {
-        const text = data.content[0].text.trim();
+      if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
+        const text = data.candidates[0].content.parts[0].text.trim();
         const jsonMatch = text.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           const suggestions = JSON.parse(jsonMatch[0]);
           setComments(suggestions);
+        } else {
+          alert('Could not parse AI response. Please try again.');
         }
       }
     } catch (error) {
       console.error('Error analyzing writing:', error);
-      alert('Error analyzing writing. Check console for details.');
+      alert('Error analyzing writing. Please check your API key and make sure it\'s valid.');
     }
 
     setIsLoading(false);
@@ -289,26 +302,27 @@ Return ONLY the JSON array, no other text.`
     setChatInput('');
     setIsLoading(true);
 
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': CLAUDE_API_KEY,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: `You are a helpful writing tutor. The student is working on this essay:
+    const plainText = editorRef.current?.innerText || essay;
 
-"${essay}"
+    const prompt = `You are a helpful writing tutor. The student is working on this essay:
+
+"${plainText}"
 
 They have a question: ${chatInput}
 
-Provide helpful guidance but DO NOT write the essay for them. If they ask for synonyms, give options. If they ask about paragraph breaks, suggest where breaks might help. If they ask you to rewrite something, instead explain how THEY could improve it. Keep responses concise and educational.`
+Provide helpful guidance but DO NOT write the essay for them. If they ask for synonyms, give options. If they ask about paragraph breaks, suggest where breaks might help. If they ask you to rewrite something, instead explain how THEY could improve it. Keep responses concise and educational.`;
+
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prompt
+            }]
           }]
         })
       });
@@ -319,13 +333,13 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
 
       const data = await response.json();
       
-      if (data.content && data.content[0]?.text) {
-        const aiMessage = { role: 'assistant', content: data.content[0].text };
+      if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
+        const aiMessage = { role: 'assistant', content: data.candidates[0].content.parts[0].text };
         setChatMessages(prev => [...prev, aiMessage]);
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage = { role: 'assistant', content: 'Sorry, there was an error. Check console for details.' };
+      const errorMessage = { role: 'assistant', content: 'Sorry, there was an error. Please check your API key and try again.' };
       setChatMessages(prev => [...prev, errorMessage]);
     }
 
@@ -337,9 +351,12 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
         <div style={{ background: 'white', padding: '40px', borderRadius: '10px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', width: '400px' }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 'bold', textAlign: 'center', marginBottom: '30px', color: '#667eea' }}>
+          <h1 style={{ fontSize: '32px', fontWeight: 'bold', textAlign: 'center', marginBottom: '10px', color: '#667eea' }}>
             AI Writing Assistant
           </h1>
+          <p style={{ textAlign: 'center', color: '#718096', fontSize: '14px', marginBottom: '30px' }}>
+            Powered by Google Gemini 🚀
+          </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             <input
               type="email"
@@ -541,7 +558,8 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
             <div
               ref={editorRef}
               contentEditable
-              onInput={(e) => setEssay(e.currentTarget.textContent)}
+              onInput={handleEditorInput}
+              dangerouslySetInnerHTML={{ __html: essay || '<span style="color: #9ca3af;">Start writing your essay here...</span>' }}
               style={{
                 maxWidth: '800px',
                 margin: '0 auto',
@@ -554,10 +572,7 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
                 fontSize: `${fontSize}px`,
                 lineHeight: '1.6'
               }}
-              suppressContentEditableWarning
-            >
-              {essay || 'Start writing your essay here...'}
-            </div>
+            />
           </div>
 
           {/* Comments Panel */}
@@ -577,6 +592,11 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
                 >
                   {isLoading ? 'Analyzing...' : 'Analyze Writing'}
                 </button>
+                {comments.length === 0 && !isLoading && (
+                  <p style={{ textAlign: 'center', color: '#718096', fontSize: '14px' }}>
+                    Click "Analyze Writing" to get AI suggestions!
+                  </p>
+                )}
                 {comments.map((comment, i) => (
                   <div key={i} style={{ marginBottom: '15px', padding: '15px', background: '#fef3c7', borderLeft: '4px solid #f59e0b', borderRadius: '6px' }}>
                     <p style={{ fontSize: '11px', color: '#92400e', marginBottom: '8px', textTransform: 'uppercase', fontWeight: 'bold' }}>{comment.location}</p>
@@ -605,6 +625,10 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
               Show Comments
             </button>
           )}
+          <div style={{ flex: 1 }}></div>
+          <span style={{ fontSize: '12px', color: '#718096' }}>
+            ⚡ Powered by Google Gemini (Free!)
+          </span>
         </div>
       </div>
 
@@ -618,6 +642,15 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
             </button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {chatMessages.length === 0 && (
+              <div style={{ textAlign: 'center', color: '#718096', padding: '20px' }}>
+                <p style={{ marginBottom: '10px' }}>💬 Ask me anything about your writing!</p>
+                <p style={{ fontSize: '12px' }}>Examples:</p>
+                <p style={{ fontSize: '12px' }}>• "What are synonyms for 'important'?"</p>
+                <p style={{ fontSize: '12px' }}>• "Where should I add paragraph breaks?"</p>
+                <p style={{ fontSize: '12px' }}>• "How can I improve this sentence?"</p>
+              </div>
+            )}
             {chatMessages.map((msg, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 <div style={{
