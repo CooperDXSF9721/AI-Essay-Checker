@@ -1,12 +1,17 @@
-const saveApiKey = () => {
+\const saveApiKey = () => {
     if (!tempApiKey.trim()) {
       alert('Please enter an API key!');
       return;
     }
+    
+    console.log('Saving API key:', tempApiKey.substring(0, 10) + '...');
     localStorage.setItem('gemini_api_key', tempApiKey);
     setUserApiKey(tempApiKey);
+    console.log('API key saved to localStorage');
+    console.log('userApiKey state set to:', tempApiKey.substring(0, 10) + '...');
+    
     setShowSettings(false);
-    alert('API key saved! You can now use the AI features.');
+    alert('✅ API key saved successfully! You can now use AI features.');
   };// API key is now entered by user in Settings - not hardcoded!
 // This keeps it safe from being scanned and disabled
 const GEMINI_API_KEY = ''; // Leave empty - user will add their own key
