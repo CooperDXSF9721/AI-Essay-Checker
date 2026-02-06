@@ -1,6 +1,6 @@
 // ⚠️ REPLACE THIS WITH YOUR GOOGLE GEMINI API KEY
 // Get it FREE at: https://makersuite.google.com/app/apikey
-const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY_HERE';
+const GEMINI_API_KEY = 'AIzaSyDVd1CHKGZ9veP216jEHJ29yJzBIn0WWqI';
 
 const { useState, useRef, useEffect } = React;
 
