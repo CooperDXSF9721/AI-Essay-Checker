@@ -266,13 +266,14 @@ Return ONLY the JSON array, no other text.`;
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('API Error:', errorData);
-        throw new Error(`API Error: ${response.status}`);
-      }
-
       const data = await response.json();
+      
+      if (!response.ok) {
+        console.error('API Response:', data);
+        alert(`API Error: ${data.error?.message || 'Unknown error'}. Check console for details.`);
+        setIsLoading(false);
+        return;
+      }
       
       if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
         const text = data.candidates[0].content.parts[0].text.trim();
@@ -283,10 +284,13 @@ Return ONLY the JSON array, no other text.`;
         } else {
           alert('Could not parse AI response. Please try again.');
         }
+      } else {
+        console.error('Unexpected response format:', data);
+        alert('Unexpected response from AI. Check console for details.');
       }
     } catch (error) {
       console.error('Error analyzing writing:', error);
-      alert('Error analyzing writing. Please check your API key and make sure it\'s valid.');
+      alert(`Error: ${error.message}. Check browser console for details.`);
     }
 
     setIsLoading(false);
