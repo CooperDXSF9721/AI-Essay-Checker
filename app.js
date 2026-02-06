@@ -203,23 +203,15 @@ const WritingAssistant = () => {
     setChatMessages([]);
   };
 
-  const applyFormat = (command, value = null) => {
-    document.execCommand(command, false, value);
-    editorRef.current?.focus();
+  const applyFormat = (command) => {
+    // Note: Formatting doesn't work with textarea, but we'll keep buttons for future enhancement
+    alert('Text formatting is not available in this version. Focus on writing great content!');
   };
 
-  // FIXED: Handle editor input without losing cursor position
-  const handleEditorInput = (e) => {
-    const content = e.currentTarget.innerHTML;
-    setEssay(content);
+  // Simple text handling - no complex formatting
+  const handleEditorChange = (e) => {
+    setEssay(e.target.value);
   };
-
-  // Sync essay content to editor only when opening a document
-  useEffect(() => {
-    if (editorRef.current && currentDocId) {
-      editorRef.current.innerHTML = essay;
-    }
-  }, [currentDocId]);
 
   const analyzeWriting = async () => {
     if (!essay.trim()) {
@@ -234,7 +226,7 @@ const WritingAssistant = () => {
                       gradeLevel === 'high-school' ? 'High School (Grades 9-12)' : 'College';
 
     // Get plain text for analysis
-    const plainText = editorRef.current?.innerText || essay;
+    const plainText = essay;
 
     const prompt = `You are a writing tutor helping a student improve their essay. You MUST NOT write the essay for them or provide complete rewrites. Instead, provide 3-5 specific, constructive suggestions as brief comments.
 
@@ -308,7 +300,7 @@ Return ONLY the JSON array, no other text.`;
     setChatInput('');
     setIsLoading(true);
 
-    const plainText = editorRef.current?.innerText || essay;
+    const plainText = essay;
 
     const prompt = `You are a helpful writing tutor. The student is working on this essay:
 
@@ -560,27 +552,30 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
         {/* Editor Area */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {/* Writing Area */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '40px' }}>
-            <div
+          <div style={{ flex: 1, overflowY: 'auto', padding: '40px', background: '#f7fafc' }}>
+            <textarea
               ref={editorRef}
-              contentEditable
-              onInput={handleEditorInput}
+              value={essay}
+              onChange={handleEditorChange}
+              placeholder="Start writing your essay here..."
               style={{
+                width: '100%',
                 maxWidth: '800px',
                 margin: '0 auto',
-                minHeight: '100%',
+                display: 'block',
+                minHeight: 'calc(100vh - 280px)',
                 padding: '40px',
                 background: 'white',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                 outline: 'none',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
                 fontFamily: fontFamily,
                 fontSize: `${fontSize}px`,
-                lineHeight: '1.6'
+                lineHeight: '1.6',
+                resize: 'vertical'
               }}
-              suppressContentEditableWarning
-            >
-              {!essay && <span style={{ color: '#9ca3af' }}>Start writing your essay here...</span>}
-            </div>
+            />
           </div>
 
           {/* Comments Panel */}
