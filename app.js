@@ -1,5 +1,5 @@
 // Google Gemini API Key
-const GEMINI_API_KEY = 'AIzaSyDKmyPjlw3boan5LU5erehTjCeIfnnanG4';
+const GEMINI_API_KEY = 'AIzaSyAmIMAlYE0ZLmBXVF-6wVZJeXhBL0DpHAQ';
 
 const { useState, useRef, useEffect } = React;
 
