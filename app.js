@@ -220,6 +220,10 @@ const WritingAssistant = () => {
     }
 
     setIsLoading(true);
+    
+    // Test API connection first
+    console.log('Testing API with key:', GEMINI_API_KEY.substring(0, 10) + '...');
+    
     const styleName = style === 'formal' ? 'Formal/Academic' : style === 'creative' ? 'Creative' : 'Casual';
     const gradeName = gradeLevel === 'elementary' ? 'Elementary School (Grades 3-5)' : 
                       gradeLevel === 'middle-school' ? 'Middle School (Grades 6-8)' :
@@ -252,6 +256,7 @@ ${plainText}
 Return ONLY the JSON array, no other text.`;
 
     try {
+      console.log('Making API request...');
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
@@ -266,21 +271,25 @@ Return ONLY the JSON array, no other text.`;
         })
       });
 
+      console.log('Response status:', response.status);
       const data = await response.json();
+      console.log('Response data:', data);
       
       if (!response.ok) {
-        console.error('API Response:', data);
-        alert(`API Error: ${data.error?.message || 'Unknown error'}. Check console for details.`);
+        console.error('API Error Details:', data);
+        alert(`API Error: ${data.error?.message || JSON.stringify(data)}. Check console for full details.`);
         setIsLoading(false);
         return;
       }
       
       if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
         const text = data.candidates[0].content.parts[0].text.trim();
+        console.log('AI Response:', text);
         const jsonMatch = text.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           const suggestions = JSON.parse(jsonMatch[0]);
           setComments(suggestions);
+          console.log('Parsed suggestions:', suggestions);
         } else {
           alert('Could not parse AI response. Please try again.');
         }
@@ -289,8 +298,8 @@ Return ONLY the JSON array, no other text.`;
         alert('Unexpected response from AI. Check console for details.');
       }
     } catch (error) {
-      console.error('Error analyzing writing:', error);
-      alert(`Error: ${error.message}. Check browser console for details.`);
+      console.error('Full error object:', error);
+      alert(`Error: ${error.message}. Check browser console (F12) for full details.`);
     }
 
     setIsLoading(false);
