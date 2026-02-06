@@ -1,5 +1,4 @@
-// ⚠️ REPLACE THIS WITH YOUR GOOGLE GEMINI API KEY
-// Get it FREE at: https://makersuite.google.com/app/apikey
+// Google Gemini API Key
 const GEMINI_API_KEY = 'AIzaSyDVd1CHKGZ9veP216jEHJ29yJzBIn0WWqI';
 
 const { useState, useRef, useEffect } = React;
@@ -209,11 +208,18 @@ const WritingAssistant = () => {
     editorRef.current?.focus();
   };
 
-  // FIXED: Handle editor input properly
+  // FIXED: Handle editor input without losing cursor position
   const handleEditorInput = (e) => {
     const content = e.currentTarget.innerHTML;
     setEssay(content);
   };
+
+  // Sync essay content to editor only when opening a document
+  useEffect(() => {
+    if (editorRef.current && currentDocId) {
+      editorRef.current.innerHTML = essay;
+    }
+  }, [currentDocId]);
 
   const analyzeWriting = async () => {
     if (!essay.trim()) {
@@ -559,7 +565,6 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
               ref={editorRef}
               contentEditable
               onInput={handleEditorInput}
-              dangerouslySetInnerHTML={{ __html: essay || '<span style="color: #9ca3af;">Start writing your essay here...</span>' }}
               style={{
                 maxWidth: '800px',
                 margin: '0 auto',
@@ -572,7 +577,10 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
                 fontSize: `${fontSize}px`,
                 lineHeight: '1.6'
               }}
-            />
+              suppressContentEditableWarning
+            >
+              {!essay && <span style={{ color: '#9ca3af' }}>Start writing your essay here...</span>}
+            </div>
           </div>
 
           {/* Comments Panel */}
