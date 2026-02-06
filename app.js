@@ -1,5 +1,15 @@
-// Google Gemini API Key
-const GEMINI_API_KEY = 'AIzaSyAdwYW32hienS0DTpqoJym7Rb4VImX9YKk';
+const saveApiKey = () => {
+    if (!tempApiKey.trim()) {
+      alert('Please enter an API key!');
+      return;
+    }
+    localStorage.setItem('gemini_api_key', tempApiKey);
+    setUserApiKey(tempApiKey);
+    setShowSettings(false);
+    alert('API key saved! You can now use the AI features.');
+  };// API key is now entered by user in Settings - not hardcoded!
+// This keeps it safe from being scanned and disabled
+const GEMINI_API_KEY = ''; // Leave empty - user will add their own key
 
 const { useState, useRef, useEffect } = React;
 
@@ -36,6 +46,8 @@ const WritingAssistant = () => {
   const [showChat, setShowChat] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [userApiKey, setUserApiKey] = useState('');
+  const [tempApiKey, setTempApiKey] = useState('');
   
   // User and document management
   const [user, setUser] = useState(null);
@@ -60,6 +72,16 @@ const WritingAssistant = () => {
   
   const editorRef = useRef(null);
   const chatEndRef = useRef(null);
+  const isComposingRef = useRef(false);
+
+  // Load API key from localStorage on mount
+  useEffect(() => {
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) {
+      setUserApiKey(savedKey);
+      setTempApiKey(savedKey);
+    }
+  }, []);
 
   // Auto-save document
   useEffect(() => {
@@ -203,14 +225,27 @@ const WritingAssistant = () => {
     setChatMessages([]);
   };
 
-  const applyFormat = (command) => {
-    // Note: Formatting doesn't work with textarea, but we'll keep buttons for future enhancement
-    alert('Text formatting is not available in this version. Focus on writing great content!');
+  const applyFormat = (command, value = null) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
   };
 
-  // Simple text handling - no complex formatting
-  const handleEditorChange = (e) => {
-    setEssay(e.target.value);
+  // Handle contentEditable input properly
+  const handleEditorInput = (e) => {
+    if (!isComposingRef.current) {
+      const content = e.currentTarget.innerHTML;
+      setEssay(content);
+    }
+  };
+
+  const handleCompositionStart = () => {
+    isComposingRef.current = true;
+  };
+
+  const handleCompositionEnd = (e) => {
+    isComposingRef.current = false;
+    const content = e.currentTarget.innerHTML;
+    setEssay(content);
   };
 
   const analyzeWriting = async () => {
@@ -219,15 +254,21 @@ const WritingAssistant = () => {
       return;
     }
 
+    if (!userApiKey) {
+      alert('Please add your API key in Settings first!\n\nGet a free key at: https://aistudio.google.com/app/apikey');
+      setShowSettings(true);
+      return;
+    }
+
     setIsLoading(true);
     
     // Test API connection first
-    console.log('Testing API with key:', GEMINI_API_KEY.substring(0, 10) + '...');
+    console.log('Testing API with key:', userApiKey.substring(0, 10) + '...');
     
     // First, let's list available models
     try {
       console.log('Checking available models...');
-      const modelsResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${GEMINI_API_KEY}`);
+      const modelsResponse = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${userApiKey}`);
       const modelsData = await modelsResponse.json();
       console.log('Available models:', modelsData);
     } catch (err) {
@@ -239,8 +280,10 @@ const WritingAssistant = () => {
                       gradeLevel === 'middle-school' ? 'Middle School (Grades 6-8)' :
                       gradeLevel === 'high-school' ? 'High School (Grades 9-12)' : 'College';
 
-    // Get plain text for analysis
-    const plainText = essay;
+    // Get plain text for analysis (strip HTML)
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = essay;
+    const plainText = tempDiv.textContent || tempDiv.innerText || '';
 
     const prompt = `You are a writing tutor helping a student improve their essay. You MUST NOT write the essay for them or provide complete rewrites. Instead, provide 3-5 specific, constructive suggestions as brief comments.
 
@@ -267,7 +310,7 @@ Return ONLY the JSON array, no other text.`;
 
     try {
       console.log('Making API request...');
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${userApiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -323,12 +366,21 @@ SOLUTION: Go to https://aistudio.google.com/apikey and make sure:
   const sendChatMessage = async () => {
     if (!chatInput.trim()) return;
 
+    if (!userApiKey) {
+      alert('Please add your API key in Settings first!');
+      setShowSettings(true);
+      return;
+    }
+
     const userMessage = { role: 'user', content: chatInput };
     setChatMessages(prev => [...prev, userMessage]);
     setChatInput('');
     setIsLoading(true);
 
-    const plainText = essay;
+    // Get plain text for chat (strip HTML)
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = essay;
+    const plainText = tempDiv.textContent || tempDiv.innerText || '';
 
     const prompt = `You are a helpful writing tutor. The student is working on this essay:
 
@@ -339,7 +391,7 @@ They have a question: ${chatInput}
 Provide helpful guidance but DO NOT write the essay for them. If they ask for synonyms, give options. If they ask about paragraph breaks, suggest where breaks might help. If they ask you to rewrite something, instead explain how THEY could improve it. Keep responses concise and educational.`;
 
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${userApiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -581,11 +633,14 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           {/* Writing Area */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '40px', background: '#f7fafc' }}>
-            <textarea
+            <div
               ref={editorRef}
-              value={essay}
-              onChange={handleEditorChange}
-              placeholder="Start writing your essay here..."
+              contentEditable
+              onInput={handleEditorInput}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              dangerouslySetInnerHTML={{ __html: essay || '' }}
+              data-placeholder="Start writing your essay here..."
               style={{
                 width: '100%',
                 maxWidth: '800px',
@@ -600,8 +655,7 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
                 borderRadius: '8px',
                 fontFamily: fontFamily,
                 fontSize: `${fontSize}px`,
-                lineHeight: '1.6',
-                resize: 'vertical'
+                lineHeight: '1.6'
               }}
             />
           </div>
@@ -736,6 +790,29 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ padding: '15px', background: '#e0f2fe', border: '1px solid #0ea5e9', borderRadius: '8px' }}>
+                <p style={{ fontSize: '14px', color: '#0c4a6e', marginBottom: '10px' }}>
+                  <strong>🔑 Your Personal API Key</strong>
+                </p>
+                <p style={{ fontSize: '12px', color: '#075985' }}>
+                  Get a FREE API key at: <a href="https://aistudio.google.com/app/apikey" target="_blank" style={{ color: '#0284c7' }}>aistudio.google.com/app/apikey</a>
+                </p>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>Google Gemini API Key</label>
+                <input
+                  type="password"
+                  value={tempApiKey}
+                  onChange={(e) => setTempApiKey(e.target.value)}
+                  placeholder="AIza..."
+                  style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '8px', fontSize: '14px' }}
+                />
+                <p style={{ fontSize: '11px', color: '#718096', marginTop: '5px' }}>
+                  Your key is stored locally in your browser only - never uploaded to any server
+                </p>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '14px', fontWeight: 'bold', marginBottom: '8px' }}>Writing Style</label>
                 <select
@@ -764,11 +841,17 @@ Provide helpful guidance but DO NOT write the essay for them. If they ask for sy
               </div>
 
               <button
-                onClick={() => setShowSettings(false)}
+                onClick={saveApiKey}
                 style={{ width: '100%', padding: '12px', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}
               >
                 Save Settings
               </button>
+              
+              {userApiKey && (
+                <p style={{ textAlign: 'center', fontSize: '12px', color: '#22c55e' }}>
+                  ✓ API key is active
+                </p>
+              )}
             </div>
           </div>
         </div>
